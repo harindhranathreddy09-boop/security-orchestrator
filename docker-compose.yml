@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   orchestrator:
     build:
@@ -124,6 +122,7 @@ services:
 volumes:
   pgdata:
   loki-data:
+  ollama-data:          # <‑‑ added this line
 
 networks:
   secnet:
