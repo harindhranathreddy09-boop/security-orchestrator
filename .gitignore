@@ -1,0 +1,26 @@
+# Binaries / executables
+/orchestrator
+/api
+/ui
+
+# Dependency directories
+/node_modules
+/yarn.lock
+/package-lock.json
+/go.sum
+
+# IDE / OS files
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Secrets (never commit)
+secrets/
+.env
+.env.*
+
+# Build artefacts
+/dist/
+/build/
+/tmp/
