@@ -1,0 +1,93 @@
+logging:
+  level: info
+  format: json
+  file: ./logs/orchestrator.log
+  forward_to_loki: true
+
+authorization:
+  base_path: ./authorizations
+
+scope:
+  ip_cidrs: []
+  hostnames: []
+  cloud_tags: []
+
+roe:
+  time_window:
+    start: "2025-09-16T00:00:00Z"
+    end:   "2025-12-31T23:59:59Z"
+  max_rps_per_tool: 10
+  allowed_tools:
+    - subfinder
+    - amass
+    - httpx
+    - nmap
+    - nuclei
+    - ffuf
+    - gobuster
+    - sqlmap
+    - burp
+    - metasploit
+  prohibited_flags:
+    nmap: ["--disable-security-checks"]
+    sqlmap: ["--batch", "--level=5", "--risk=3"]
+  credentials:
+    allow: false
+  data_exfiltration_ban: true
+  kill_switch_file: "./STOP"
+
+llm_router:
+  providers:
+    - name: openai
+      type: openai
+      api_key_env: OPENAI_API_KEY   # also read from /run/secrets/llm_openai_key
+      model: gpt-4-turbo
+      rate_limit:
+        requests_per_min: 60
+        daily_usd_budget: 2.0
+    - name: ollama
+      type: ollama
+      endpoint: http://ollama:11434
+      model: llama2:7b-chat
+      rate_limit:
+        requests_per_min: 60
+        daily_usd_budget: 0.0
+  fallback_order: [ollama, openai]
+  guardrails:
+    scope_check: true
+    command_sanitizer: true
+    max_tokens_per_prompt: 1500
+    max_tokens_per_completion: 500
+
+scheduler:
+  enabled: true
+  timezone: UTC
+  jobs:
+    - name: passive-recon
+      cron: "0 */6 * * *"
+      action: passive_recon
+      max_concurrent: 3
+
+notifier:
+  email:
+    enabled: false
+    smtp_host: smtp.example.com
+    smtp_port: 587
+    username: ${SMTP_USER}
+    password_file: /run/secrets/smtp_password
+    from: secops@example.com
+  slack:
+    enabled: false
+    webhook_url: ${SLACK_WEBHOOK}
+    username: secops-bot
+    channel: "#secops-alerts"
+
+reporting:
+  template_dir: ./reports/templates
+  output_dir: ./data/reports
+  formats:
+    - html
+    - markdown
+    - pdf
+  weasyprint:
+    enabled: true
