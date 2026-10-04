@@ -1,0 +1,144 @@
+version: "3.9"
+
+services:
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.orchestrator
+    image: sec-orchestrator:latest
+    container_name: orchestrator
+    restart: unless-stopped
+    env_file:
+      - ./configs/orchaestrator.yaml
+    secrets:
+      - db_password
+      - jwt_secret
+      - llm_openai_key
+      - smtp_password
+      - tls_key
+      - tls_cert
+    volumes:
+      - ./authorizations:/authorizations:ro
+      - ./data:/orchestrator/data:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro   # needed for DinD side‑cars
+    depends_on:
+      - postgres
+      - loki
+    networks:
+      - secnet
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: sec-orchestrator:latest
+    container_name: api
+    command: ["orchestrator","api"]
+    restart: unless-stopped
+    env_file:
+      - ./configs/api.yaml
+    secrets:
+      - db_password
+      - jwt_secret
+      - llm_openai_key
+      - smtp_password
+      - tls_key
+      - tls_cert
+    volumes:
+      - ./authorizations:/authorizations:ro
+      - ./data:/orchestrator/data:rw
+    depends_on:
+      - postgres
+      - loki
+    networks:
+      - secnet
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    image: sec-orchestrator-ui:latest
+    container_name: ui
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    networks:
+      - secnet
+
+  postgres:
+    image: timescale/timescaledb:latest-pg15
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: secops
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_DB: secops
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    secrets:
+      - db_password
+    networks:
+      - secnet
+
+  loki:
+    image: grafana/loki:2.9.1
+    container_name: loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    command: [-config.file=/etc/loki/local-config.yaml]
+    volumes:
+      - ./configs/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    networks:
+      - secnet
+
+  promtail:
+    image: grafana/promtail:2.9.1
+    container_name: promtail
+    restart: unless-stopped
+    volumes:
+      - /var/log:/var/log:ro
+      - ./data/orchestrator/logs:/var/log/app:ro
+      - ./configs/promtail-config.yaml:/etc/promtail/config.yaml:ro
+    depends_on:
+      - loki
+    networks:
+      - secnet
+
+  ollama:
+    image: ollama/ollama:0.1.34
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    networks:
+      - secnet
+
+volumes:
+  pgdata:
+  loki-data:
+
+networks:
+  secnet:
+    driver: bridge
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+  llm_openai_key:
+    file: ./secrets/llm_openai_key.txt
+  smtp_password:
+    file: ./secrets/smtp_password.txt
+  tls_key:
+    file: ./secrets/tls_key.pem
+  tls_cert:
+    file: ./secrets/tls_cert.pem
