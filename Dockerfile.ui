@@ -1,0 +1,12 @@
+# ---- Build stage ----
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY ui/package.json ui/yarn.lock ./
+RUN yarn install --frozen-lockfile
+COPY ui/ .
+RUN yarn build
+
+# ---- Runtime stage ----
+FROM nginx:alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+EXPOSE 80
